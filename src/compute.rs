@@ -10,7 +10,7 @@ use bevy::{
     render::{
         extract_resource::ExtractResource,
         render_resource::{AsBindGroup, ShaderType},
-        storage::ShaderStorageBuffer,
+        storage::ShaderBuffer,
     },
     shader::ShaderRef,
 };
@@ -46,11 +46,11 @@ pub struct SoftBodyCompute<const N: usize> {
     uniforms: SoftBodyComputeUniform,
 
     #[storage(2, visibility(compute))]
-    pub vertices: Handle<ShaderStorageBuffer>,
+    pub vertices: Handle<ShaderBuffer>,
     #[storage(3, read_only, visibility(compute))]
-    pub nodes: Handle<ShaderStorageBuffer>,
+    pub nodes: Handle<ShaderBuffer>,
     #[storage(4, read_only, visibility(compute))]
-    pub instances: Handle<ShaderStorageBuffer>,
+    pub instances: Handle<ShaderBuffer>,
 
     // Track number of instances for dispatching workgroups.
     pub num_instances: u32,

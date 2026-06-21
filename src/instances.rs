@@ -6,8 +6,7 @@ use bevy::{
         world::{FromWorld, World},
     },
     render::{
-        extract_resource::ExtractResource, render_resource::ShaderType,
-        storage::ShaderStorageBuffer,
+        extract_resource::ExtractResource, render_resource::ShaderType, storage::ShaderBuffer,
     },
 };
 
@@ -26,11 +25,9 @@ pub struct SoftBody2dInstanceData {
 }
 
 #[derive(Resource, ExtractResource, Clone)]
-pub struct SoftBody2dInstanceBuffer<const N: usize>(pub Handle<ShaderStorageBuffer>);
+pub struct SoftBody2dInstanceBuffer<const N: usize>(pub Handle<ShaderBuffer>);
 impl<const N: usize> FromWorld for SoftBody2dInstanceBuffer<N> {
     fn from_world(world: &mut World) -> Self {
-        Self(world.add_asset(ShaderStorageBuffer::from(
-            Vec::<SoftBody2dInstanceData>::new(),
-        )))
+        Self(world.add_asset(ShaderBuffer::from(Vec::<SoftBody2dInstanceData>::new())))
     }
 }

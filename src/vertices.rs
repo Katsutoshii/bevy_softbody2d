@@ -8,7 +8,7 @@ use bevy::{
     math::Vec2,
     render::{
         extract_resource::ExtractResource, render_resource::ShaderType,
-        storage::ShaderStorageBuffer,
+        storage::ShaderBuffer,
     },
 };
 
@@ -26,10 +26,10 @@ pub struct SoftBody2dVertex {
 }
 
 #[derive(Resource, ExtractResource, Clone)]
-pub struct SoftBody2dVertexBuffer<const N: usize>(pub Handle<ShaderStorageBuffer>);
+pub struct SoftBody2dVertexBuffer<const N: usize>(pub Handle<ShaderBuffer>);
 impl<const N: usize> SoftBody2dVertexBuffer<N> {
     /// Resizes the vertex buffer to support the given number of instances.
-    pub fn resize_buffer(num_instances: u32, buffer: &mut ShaderStorageBuffer) {
+    pub fn resize_buffer(num_instances: u32, buffer: &mut ShaderBuffer) {
         let element_size = SoftBody2dVertex::min_size().get() as usize;
         let new_buffer_size = element_size * num_instances as usize * N;
         if let Some(data) = buffer.data.as_mut() {
@@ -39,6 +39,6 @@ impl<const N: usize> SoftBody2dVertexBuffer<N> {
 }
 impl<const N: usize> FromWorld for SoftBody2dVertexBuffer<N> {
     fn from_world(world: &mut World) -> Self {
-        Self(world.add_asset(ShaderStorageBuffer::from(Vec::<SoftBody2dVertex>::new())))
+        Self(world.add_asset(ShaderBuffer::from(Vec::<SoftBody2dVertex>::new())))
     }
 }

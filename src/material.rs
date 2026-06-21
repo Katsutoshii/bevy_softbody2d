@@ -8,16 +8,16 @@ use bevy::{
         world::{DeferredWorld, FromWorld, World},
     },
     image::Image,
+    material::AlphaMode,
     mesh::{Mesh, Mesh3d, MeshVertexBufferLayoutRef},
     pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin, MeshMaterial3d},
     reflect::{Reflect, TypePath},
     render::{
-        alpha::AlphaMode,
         extract_resource::ExtractResource,
         render_resource::{
             AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError,
         },
-        storage::ShaderStorageBuffer,
+        storage::ShaderBuffer,
     },
     shader::ShaderRef,
 };
@@ -60,7 +60,7 @@ pub struct SoftBody2dMaterial<const N: usize> {
     pub color_texture: Option<Handle<Image>>,
 
     #[storage(4, read_only)]
-    pub vertices: Handle<ShaderStorageBuffer>,
+    pub vertices: Handle<ShaderBuffer>,
 
     pub alpha_mode: AlphaMode,
 }

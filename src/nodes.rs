@@ -15,8 +15,7 @@ use bevy::{
     mesh::MeshTag,
     reflect::Reflect,
     render::{
-        extract_resource::ExtractResource, render_resource::ShaderType,
-        storage::ShaderStorageBuffer,
+        extract_resource::ExtractResource, render_resource::ShaderType, storage::ShaderBuffer,
     },
     transform::{
         TransformSystems,
@@ -50,10 +49,10 @@ pub struct SoftBody2dNodeData {
 }
 
 #[derive(Resource, Clone, ExtractResource)]
-pub struct SoftBody2dNodeDataBuffer<const N: usize>(pub Handle<ShaderStorageBuffer>);
+pub struct SoftBody2dNodeDataBuffer<const N: usize>(pub Handle<ShaderBuffer>);
 impl<const N: usize> FromWorld for SoftBody2dNodeDataBuffer<N> {
     fn from_world(world: &mut World) -> Self {
-        Self(world.add_asset(ShaderStorageBuffer::from(Vec::<SoftBody2dNodeData>::new())))
+        Self(world.add_asset(ShaderBuffer::from(Vec::<SoftBody2dNodeData>::new())))
     }
 }
 
@@ -78,11 +77,11 @@ impl<const N: usize> SoftBodyNodes<N> {
             .insert(MeshTag(num_instances - 1));
 
         let buffer_handle = world.resource_mut::<SoftBody2dVertexBuffer<N>>().0.clone();
-        if let Some(buffer) = world
-            .resource_mut::<Assets<ShaderStorageBuffer>>()
+        if let Some(mut buffer) = world
+            .resource_mut::<Assets<ShaderBuffer>>()
             .get_mut(&buffer_handle)
         {
-            SoftBody2dVertexBuffer::<N>::resize_buffer(num_instances, buffer);
+            SoftBody2dVertexBuffer::<N>::resize_buffer(num_instances, &mut buffer);
         }
     }
 
@@ -90,11 +89,11 @@ impl<const N: usize> SoftBodyNodes<N> {
     fn on_remove(mut world: DeferredWorld, _context: HookContext) {
         let num_instances = world.resource_mut::<SoftBodyCompute<N>>().remove_instance();
         let buffer_handle = world.resource_mut::<SoftBody2dVertexBuffer<N>>().0.clone();
-        if let Some(buffer) = world
-            .resource_mut::<Assets<ShaderStorageBuffer>>()
+        if let Some(mut buffer) = world
+            .resource_mut::<Assets<ShaderBuffer>>()
             .get_mut(&buffer_handle)
         {
-            SoftBody2dVertexBuffer::<N>::resize_buffer(num_instances, buffer);
+            SoftBody2dVertexBuffer::<N>::resize_buffer(num_instances, &mut buffer);
         }
     }
 
@@ -119,7 +118,7 @@ impl<const N: usize> SoftBodyNodes<N> {
     /// Copy relative positions into the nodes buffer.
     pub fn update_buffers(
         mut compute: ResMut<SoftBodyCompute<N>>,
-        mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
+        mut buffers: ResMut<Assets<ShaderBuffer>>,
         query: Query<(&GlobalTransform, &SoftBodyNodes<N>)>,
         node_transforms: Query<(&GlobalTransform, &SoftBody2dNode)>,
     ) {
@@ -148,10 +147,10 @@ impl<const N: usize> SoftBodyNodes<N> {
             instance_i += 1;
         }
         compute.num_instances = instance_i as u32;
-        if let Some(node_buffer) = buffers.get_mut(&compute.nodes) {
+        if let Some(mut node_buffer) = buffers.get_mut(&compute.nodes) {
             node_buffer.set_data(&all_nodes[0..node_i]);
         }
-        if let Some(instance_buffer) = buffers.get_mut(&compute.instances) {
+        if let Some(mut instance_buffer) = buffers.get_mut(&compute.instances) {
             instance_buffer.set_data(&all_instances[0..instance_i]);
         }
     }

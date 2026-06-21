@@ -6,9 +6,12 @@ use std::{
 
 use bevy::{
     app::{App, Plugin},
-    ecs::{resource::Resource, schedule::SystemCondition},
-    render::{RenderSystems, alpha::AlphaMode, render_resource::BindGroupLayoutDescriptor},
+    core_pipeline::Core3dSystems,
+    ecs::{component::Mutable, resource::Resource, schedule::SystemCondition},
+    material::AlphaMode,
+    render::{RenderSystems, render_resource::BindGroupLayoutDescriptor, renderer::RenderGraph},
     shader::{Shader, ShaderDefVal, ShaderRef},
+    utils::default,
 };
 use bevy::{
     asset::DirectAssetAccessExt,
@@ -27,7 +30,6 @@ use bevy::{
     render::{
         ExtractSchedule, MainWorld, Render, RenderApp,
         extract_resource::{ExtractResource, ExtractResourcePlugin, extract_resource},
-        render_graph::{self, RenderGraph, RenderLabel},
         render_resource::{
             AsBindGroup, BindGroup, CachedComputePipelineId, CachedPipelineState,
             ComputePassDescriptor, ComputePipelineDescriptor, PipelineCache,
@@ -64,11 +66,12 @@ impl<S: ComputeShader> Plugin for ComputeShaderPlugin<S> {
         render_app
             .init_resource::<ComputePipeline<S>>()
             .init_resource::<ComputeNodeState<S>>()
+            .insert_resource(ComputeNode::<S>::default())
             .add_systems(
                 ExtractSchedule,
                 ComputeNode::<S>::reset_on_change
                     .run_if(resource_exists_and_changed::<S>)
-                    .after(extract_resource::<S>),
+                    .after(extract_resource::<S, _>),
             )
             .add_systems(
                 ExtractSchedule,
@@ -80,29 +83,23 @@ impl<S: ComputeShader> Plugin for ComputeShaderPlugin<S> {
                 S::prepare_bind_group
                     .in_set(RenderSystems::PrepareBindGroups)
                     .run_if(
-                        not(resource_exists::<ComputeShaderBindGroup<S>>).or(resource_changed::<S>),
+                        not(resource_exists::<ComputeShaderBindGroup<S>>)
+                            .or_else(resource_changed::<S>),
                     ),
+            )
+            .add_systems(
+                RenderGraph,
+                (ComputeNode::<S>::update, ComputeNode::<S>::run)
+                    .chain()
+                    .in_set(Core3dSystems::MainPass),
             );
-
-        // Add the compute node as a top level node to the render graph
-        // This means it will only execute once per frame
-
-        let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
-        render_graph.add_node(
-            ComputeNodeLabel::<S>::default(),
-            ComputeNode::<S> {
-                ..Default::default()
-            },
-        );
-        render_graph.add_node_edge(
-            ComputeNodeLabel::<S>::default(),
-            bevy::render::graph::CameraDriverLabel,
-        );
     }
 }
 
 /// Trait to implement for a custom compute shader.
-pub trait ComputeShader: AsBindGroup + Clone + Debug + FromWorld + ExtractResource {
+pub trait ComputeShader:
+    AsBindGroup + Clone + Debug + FromWorld + ExtractResource + Resource<Mutability = Mutable>
+{
     /// Get a unique name for this class.
     fn unique_name() -> &'static str {
         std::any::type_name::<Self>()
@@ -221,11 +218,11 @@ impl<S: ComputeShader> ComputePipelineResources<S> {
         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some(S::unique_name().into()),
             layout: vec![layout.clone()],
-            push_constant_ranges: Vec::new(),
             shader: shader.clone(),
             shader_defs: shader_defs.clone(),
             entry_point: Some("update".into()),
             zero_initialize_workgroup_memory: true,
+            ..default()
         });
         Self {
             layout,
@@ -259,30 +256,9 @@ impl<S: ComputeShader> FromWorld for ComputePipeline<S> {
     }
 }
 
-/// Label to identify the node in the render graph.
-#[derive(Debug, Clone, RenderLabel)]
-struct ComputeNodeLabel<S: ComputeShader> {
-    _marker: PhantomData<S>,
-}
-impl<S: ComputeShader> Default for ComputeNodeLabel<S> {
-    fn default() -> Self {
-        Self {
-            _marker: PhantomData,
-        }
-    }
-}
-impl<S: ComputeShader> PartialEq for ComputeNodeLabel<S> {
-    fn eq(&self, _other: &Self) -> bool {
-        true
-    }
-}
-impl<S: ComputeShader> Eq for ComputeNodeLabel<S> {}
-impl<S: ComputeShader> Hash for ComputeNodeLabel<S> {
-    fn hash<H: Hasher>(&self, _state: &mut H) {}
-}
-
 /// The node that will execute the compute shader.
 /// Updates `ComputeNodeState<S>` in the `RenderWorld`.
+#[derive(Resource)]
 struct ComputeNode<S: ComputeShader> {
     status: ComputeNodeStatus,
     _marker: PhantomData<S>,
@@ -297,13 +273,7 @@ impl<S: ComputeShader> Default for ComputeNode<S> {
 }
 impl<S: ComputeShader> ComputeNode<S> {
     /// When the input shader is changed, reset.
-    fn reset_on_change(
-        mut render_graph: ResMut<RenderGraph>,
-        mut state: ResMut<ComputeNodeState<S>>,
-    ) {
-        let Ok(node) = render_graph.get_node_mut::<Self>(ComputeNodeLabel::<S>::default()) else {
-            return;
-        };
+    fn reset_on_change(mut state: ResMut<ComputeNodeState<S>>, mut node: ResMut<Self>) {
         node.status = ComputeNodeStatus::Loading;
         *state = ComputeNodeState {
             status: ComputeNodeStatus::Loading,
@@ -332,40 +302,43 @@ impl<S: ComputeShader> ComputeNode<S> {
             _ => ComputeNodeStatus::Error,
         }
     }
-}
-impl<S: ComputeShader> render_graph::Node for ComputeNode<S> {
-    fn update(&mut self, world: &mut World) {
-        let pipeline = world.resource::<ComputePipeline<S>>();
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let next_status = self.next_state(pipeline, pipeline_cache);
-        if self.status != next_status {
-            self.status = next_status;
-            world.resource_mut::<ComputeNodeState<S>>().status = next_status;
+
+    /// Update state.
+    fn update(
+        pipeline: Res<ComputePipeline<S>>,
+        pipeline_cache: Res<PipelineCache>,
+        mut node: ResMut<Self>,
+        mut state: ResMut<ComputeNodeState<S>>,
+    ) {
+        let next_status = node.next_state(&pipeline, &pipeline_cache);
+        if node.status != next_status {
+            node.status = next_status;
+            state.status = next_status;
         }
     }
+
+    /// Run the compute node.
     fn run(
-        &self,
-        _graph: &mut render_graph::RenderGraphContext,
-        render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), render_graph::NodeRunError> {
-        let shader = world.resource::<S>();
-        let pipeline_cache = world.resource::<PipelineCache>();
-        let pipeline = world.resource::<ComputePipeline<S>>();
-        let bind_group = &world.resource::<ComputeShaderBindGroup<S>>().bind_group;
-        match self.status {
+        shader: Res<S>,
+        pipeline: Res<ComputePipeline<S>>,
+        pipeline_cache: Res<PipelineCache>,
+        bind_group: Res<ComputeShaderBindGroup<S>>,
+        node: Res<Self>,
+        mut ctx: RenderContext,
+    ) {
+        match node.status {
             ComputeNodeStatus::Update => {
                 if let Some(pipeline) =
                     pipeline_cache.get_compute_pipeline(pipeline.resources.pipeline)
                 {
                     let workgroup_count = shader.workgroup_count();
-                    let mut pass = render_context.command_encoder().begin_compute_pass(
-                        &ComputePassDescriptor {
-                            label: Some(S::unique_name()),
-                            ..Default::default()
-                        },
-                    );
-                    pass.set_bind_group(0, bind_group, &[]);
+                    let mut pass =
+                        ctx.command_encoder()
+                            .begin_compute_pass(&ComputePassDescriptor {
+                                label: Some(S::unique_name()),
+                                ..Default::default()
+                            });
+                    pass.set_bind_group(0, &bind_group.bind_group, &[]);
                     pass.set_pipeline(pipeline);
                     pass.dispatch_workgroups(
                         workgroup_count.x,
@@ -376,6 +349,5 @@ impl<S: ComputeShader> render_graph::Node for ComputeNode<S> {
             }
             _ => {}
         }
-        Ok(())
     }
 }
