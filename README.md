@@ -9,3 +9,9 @@
 `bevy_softbody2d` provides a component `SoftBody2d` that will construct a SoftBody mesh around the given nodes.
 The mesh will act as a shrink-wrapped bag around the nodes and automatically updates to the nodes position.
 This means that users can specify any physics they like for the nodes.
+
+## Bevy support table
+
+| bevy | bevy_spatialgrid2d |
+| ---- | ------------------ |
+| 0.18 | 0.18.0             |
