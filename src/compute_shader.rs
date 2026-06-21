@@ -6,10 +6,13 @@ use std::{
 
 use bevy::{
     app::{App, Plugin},
-    core_pipeline::Core3dSystems,
     ecs::{component::Mutable, resource::Resource, schedule::SystemCondition},
     material::AlphaMode,
-    render::{RenderSystems, render_resource::BindGroupLayoutDescriptor, renderer::RenderGraph},
+    render::{
+        RenderSystems,
+        render_resource::BindGroupLayoutDescriptor,
+        renderer::{RenderGraph, RenderGraphSystems},
+    },
     shader::{Shader, ShaderDefVal, ShaderRef},
     utils::default,
 };
@@ -91,7 +94,7 @@ impl<S: ComputeShader> Plugin for ComputeShaderPlugin<S> {
                 RenderGraph,
                 (ComputeNode::<S>::update, ComputeNode::<S>::run)
                     .chain()
-                    .in_set(Core3dSystems::MainPass),
+                    .in_set(RenderGraphSystems::Begin),
             );
     }
 }
