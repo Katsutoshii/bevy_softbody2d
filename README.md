@@ -14,4 +14,5 @@ This means that users can specify any physics they like for the nodes.
 
 | bevy | bevy_spatialgrid2d |
 | ---- | ------------------ |
+| 0.19 | 0.19.0             |
 | 0.18 | 0.18.0             |
