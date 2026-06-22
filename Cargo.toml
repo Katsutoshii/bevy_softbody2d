@@ -27,6 +27,7 @@ bevy = { version = "0.19", default-features = false, features = [
 bevy = { version = "0.19", default-features = true, features = [
     "file_watcher",
     "bevy_dev_tools",
+    "embedded_watcher",
     "dynamic_linking",
 ] }
 bevy-inspector-egui = { version = "0.37" }
