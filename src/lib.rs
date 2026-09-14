@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 use bevy::{
     app::{App, Plugin},
     asset::{AssetPath, embedded_asset, embedded_path},

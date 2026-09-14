@@ -1,5 +1,5 @@
 //! Basic example rendering an amoeba.
-//! `cargo run --example basic`
+//! `cargo run --example flagellum`
 #![recursion_limit = "256"]
 use std::f32::consts::PI;
 
@@ -20,8 +20,7 @@ use bevy_softbody2d::{
 };
 
 /// Number of vertices for the softbody rendering.
-const N1: usize = 32;
-const N2: usize = 64;
+const N1: usize = 64;
 
 fn main() {
     let mut app = App::new();
@@ -35,18 +34,16 @@ fn main() {
         },
         SoftBodyPlugin,
         SoftBodyMaterial2dPlugin::<N1>::default(),
-        SoftBodyMaterial2dPlugin::<N2>::default(),
     ))
     .insert_resource(WireframeConfig {
         default_color: GRAY.into(),
         ..default()
     })
-    .init_resource::<CustomSoftBodyAssets<N1>>()
-    .init_resource::<CustomSoftBodyAssets<N2>>()
-    .init_resource::<CustomSoftBodyNodeAssets>()
+    .init_resource::<FlagellumAssets<N1>>()
+    .init_resource::<FlagellumNodeAssets>()
     .insert_resource(ClearColor(Color::WHITE))
     .add_systems(Startup, setup)
-    .add_systems(FixedUpdate, CustomSoftBodyNode::fixed_update)
+    .add_systems(FixedUpdate, FlagellumNode::fixed_update)
     .add_systems(
         Update,
         (
@@ -57,50 +54,18 @@ fn main() {
     .run();
 }
 
-/// Spawn in many soft bodies.
+/// Spawn in a flagellum
 fn setup(mut commands: Commands) {
     commands.spawn(MainCamera);
     commands.spawn(DirectionalLight::default());
 
-    let z = -0.1;
-    let x_step = 1.6;
-    let y_step = 1.6;
-    let x_total = 8;
-    let y_total = 8;
-
-    for y in 0..y_total {
-        for x in 0..x_total / 2 {
-            commands.spawn((
-                CustomSoftBody::<N1>,
-                Transform {
-                    translation: Vec3::new(
-                        (x - x_total / 2) as f32 * x_step,
-                        (y - y_total / 2) as f32 * y_step,
-                        z + ((x + y * x_total) as f32 * 0.0001),
-                    ),
-                    scale: Vec3::splat(1.0),
-                    ..default()
-                },
-            ));
-        }
-    }
-
-    for y in 0..y_total {
-        for x in x_total / 2..x_total {
-            commands.spawn((
-                CustomSoftBody::<N2>,
-                Transform {
-                    translation: Vec3::new(
-                        (x - x_total / 2) as f32 * x_step,
-                        (y - y_total / 2) as f32 * y_step,
-                        z + ((x + y * x_total) as f32 * 0.0001),
-                    ),
-                    scale: Vec3::splat(1.25),
-                    ..default()
-                },
-            ));
-        }
-    }
+    commands.spawn((
+        Flagellum::<N1>,
+        Transform {
+            scale: Vec3::splat(2.0),
+            ..default()
+        },
+    ));
 }
 
 fn toggle_wireframe(mut wireframe_config: ResMut<WireframeConfig>) {
@@ -134,11 +99,11 @@ struct MainCamera;
 
 /// Assets for spawning soft body nodes.
 #[derive(Resource, Reflect, Clone)]
-struct CustomSoftBodyNodeAssets {
+struct FlagellumNodeAssets {
     mesh: Handle<Mesh>,
     material: Handle<StandardMaterial>,
 }
-impl FromWorld for CustomSoftBodyNodeAssets {
+impl FromWorld for FlagellumNodeAssets {
     fn from_world(world: &mut World) -> Self {
         Self {
             mesh: world.add_asset(Circle { radius: 0.1 }),
@@ -154,15 +119,15 @@ impl FromWorld for CustomSoftBodyNodeAssets {
 
 /// Custom soft body node.
 #[derive(Component, Reflect)]
-#[require(Name::new("SoftBodyNode"))]
-#[component(on_add = Self::on_add)]
-struct CustomSoftBodyNode {
+#[require(Name::new("FlagellumNode"))]
+#[component(on_add = FlagellumNode::on_add)]
+struct FlagellumNode {
     radius: f32,
 }
-impl CustomSoftBodyNode {
+impl FlagellumNode {
     fn on_add(mut world: DeferredWorld, context: HookContext) {
-        let CustomSoftBodyNodeAssets { mesh, material } =
-            world.resource::<CustomSoftBodyNodeAssets>().clone();
+        let FlagellumNodeAssets { mesh, material } =
+            world.resource::<FlagellumNodeAssets>().clone();
         let radius = world.entity(context.entity).get::<Self>().unwrap().radius;
         world.commands().entity(context.entity).insert((
             Mesh3d(mesh),
@@ -176,17 +141,16 @@ impl CustomSoftBodyNode {
         let omega = 2.0;
         for (i, mut transform) in query.iter_mut().enumerate() {
             let phi = i as f32;
-            transform.translation.x += alpha * (time.elapsed_secs() * omega + phi).cos();
             transform.translation.y += alpha * (time.elapsed_secs() * omega + phi).sin();
         }
     }
 }
 
 #[derive(Component, Reflect, Copy, Clone)]
-#[component(on_add = CustomSoftBody::<N>::on_add)]
-#[require(Name::new("SoftBody"))]
-struct CustomSoftBody<const N: usize>;
-impl<const N: usize> CustomSoftBody<N> {
+#[component(on_add = Flagellum::<N>::on_add)]
+#[require(Name::new("Flagellum"))]
+struct Flagellum<const N: usize>;
+impl<const N: usize> Flagellum<N> {
     fn on_add(mut world: DeferredWorld, context: HookContext) {
         let Transform {
             translation, scale, ..
@@ -197,23 +161,37 @@ impl<const N: usize> CustomSoftBody<N> {
             .clone();
         let entities = [
             (
-                CustomSoftBodyNode { radius: 0.6 },
+                FlagellumNode { radius: 0.2 },
                 Transform {
-                    translation: Vec3::new(0.1, -0.1, 0.0) * scale + translation,
+                    translation: Vec3::new(-0.6, 0.0, 0.0) * scale + translation,
                     ..default()
                 },
             ),
             (
-                CustomSoftBodyNode { radius: 0.5 },
+                FlagellumNode { radius: 0.2 },
                 Transform {
-                    translation: Vec3::new(0.3, 0.3, 0.0) * scale + translation,
+                    translation: Vec3::new(-0.2, 0.0, 0.0) * scale + translation,
                     ..default()
                 },
             ),
             (
-                CustomSoftBodyNode { radius: 0.4 },
+                FlagellumNode { radius: 0.2 },
                 Transform {
-                    translation: Vec3::new(-0.2, -0.2, 0.0) * scale + translation,
+                    translation: Vec3::new(0.0, 0.0, 0.0) * scale + translation,
+                    ..default()
+                },
+            ),
+            (
+                FlagellumNode { radius: 0.2 },
+                Transform {
+                    translation: Vec3::new(0.2, 0.0, 0.0) * scale + translation,
+                    ..default()
+                },
+            ),
+            (
+                FlagellumNode { radius: 0.2 },
+                Transform {
+                    translation: Vec3::new(0.6, 0.0, 0.0) * scale + translation,
                     ..default()
                 },
             ),
@@ -222,7 +200,7 @@ impl<const N: usize> CustomSoftBody<N> {
         .map(|bundle| world.commands().spawn(bundle).id())
         .collect();
 
-        let CustomSoftBodyAssets { material } = world.resource::<CustomSoftBodyAssets<N>>().clone();
+        let FlagellumAssets { material } = world.resource::<FlagellumAssets<N>>().clone();
         world
             .commands()
             .entity(context.entity)
@@ -232,19 +210,18 @@ impl<const N: usize> CustomSoftBody<N> {
 
 /// Global handles to soft body assets to enable GPU instancing.
 #[derive(Resource, Reflect, Clone)]
-struct CustomSoftBodyAssets<const N: usize> {
+struct FlagellumAssets<const N: usize> {
     material: Handle<SoftBody2dMaterial<N>>,
 }
-impl<const N: usize> CustomSoftBodyAssets<N> {
+impl<const N: usize> FlagellumAssets<N> {
     fn get_color_texture(world: &World) -> Handle<Image> {
         match N {
-            N1 => world.load_asset("textures/bubble_bl.png"),
-            N2 => world.load_asset("textures/bubble_or.png"),
+            N1 => world.load_asset("textures/bubble_bw.png"),
             _ => unreachable!(),
         }
     }
 }
-impl<const N: usize> FromWorld for CustomSoftBodyAssets<N> {
+impl<const N: usize> FromWorld for FlagellumAssets<N> {
     fn from_world(world: &mut World) -> Self {
         let material = SoftBody2dMaterial::<N> {
             uniforms: SoftBodyMaterialUniform {

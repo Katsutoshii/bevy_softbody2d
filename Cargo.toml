@@ -6,10 +6,8 @@ authors = ["Josiah Putman <joshikatsu@gmail.com>"]
 description = "Bevy amoeba Bevy game engine."
 documentation = "https://docs.rs/bevy_softbody2d/latest/bevy_softbody2d"
 license = "MIT OR Apache-2.0"
-homepage = "https://github.com/Katsutoshii/bevy_softbody2d"
 repository = "https://github.com/Katsutoshii/bevy_softbody2d"
 keywords = ["bevy"]
-readme = "README.md"
 exclude = ["assets/*"]
 
 [dependencies]
@@ -38,3 +36,9 @@ debug = []
 
 [[example]]
 name = "basic"
+
+[[example]]
+name = "flagellum"
+
+[[example]]
+name = "interactive"

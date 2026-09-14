@@ -19,7 +19,7 @@ const TAU: f32 = 6.28318531;
 const PI: f32 =  3.14159274;
 
 const ORIGIN = vec2<f32>(0.0, 0.0);
-const RADIUS: f32 = 1.0;
+const RADIUS: f32 = 10.0;
 
 // Compute initial position from the given index.
 fn get_position(i: u32, n: u32) -> vec2<f32> {
